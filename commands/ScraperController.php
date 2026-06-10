@@ -18,8 +18,13 @@ use app\models\AnnouncementDocument;
  */
 class ScraperController extends Controller
 {
-    /** Source category URL */
-    private const BASE_URL = 'https://www.kstu.kz/category/obyavleniya-o-zashhite-doktorskoj-dissertatsii/';
+    /** Category URL per language (KSTU uses different slugs per language) */
+    private const CATEGORY_URLS = [
+        'ru' => 'https://www.kstu.kz/category/obyavleniya-o-zashhite-doktorskoj-dissertatsii/',
+        'kz' => 'https://www.kstu.kz/category/doktorly-dissertatsiyany-or-au-turaly-habarlandyru/',
+        'en' => 'https://www.kstu.kz/category/the-announcement-of-defense-of-doctoral-dissertation/?lang=en',
+    ];
+    private const BASE_URL = self::CATEGORY_URLS['ru'];
     private const LANG_RU  = 'ru';
     private const LANG_KZ  = 'kz';
     private const LANG_EN  = 'en';
@@ -68,6 +73,7 @@ class ScraperController extends Controller
         $this->stdout("Страниц          : " . ($this->pages ?: 'все') . "\n");
         $this->stdout("Пауза между запросами: {$this->delay} сек.\n\n");
 
+        // Collect announcement URLs from category pages
         $announcementUrls = $this->collectAnnouncementUrls();
 
         if (empty($announcementUrls)) {
@@ -78,25 +84,46 @@ class ScraperController extends Controller
         $this->stdout("Найдено объявлений: " . count($announcementUrls) . "\n\n");
 
         $stats = ['new' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => 0];
-        $totalCount = count($announcementUrls);
+        $seenUrls = [];   // all URLs already processed or queued
+        $queue    = [];   // pending URLs to process [['url' => ..., 'language' => ..., 'group_key' => ...]]
+
+        // Seed the queue with category-collected URLs
+        foreach ($announcementUrls as $item) {
+            $queue[] = ['url' => $item['url'], 'language' => $item['language'], 'group_key' => null];
+            $seenUrls[$item['url']] = true;
+        }
+
+        $totalCount = count($queue);
         $current    = 0;
 
-        foreach ($announcementUrls as $item) {
+        while (!empty($queue)) {
+            $item = array_shift($queue);
             $current++;
-            $url = $item['url'];
+            $url      = $item['url'];
             $language = $item['language'];
-            $this->stdout("[{$current}/{$totalCount}] {$url} ({$language})\n");
+
+            $this->stdout("[{$current}] {$url} ({$language})\n");
 
             try {
-                $result = $this->processAnnouncement($url, $language);
+                $result = $this->processAnnouncement($url, $language, $item['group_key']);
                 $stats[$result]++;
+
+                // If we successfully fetched the page, look for hreflang links
+                // to discover kz/en variants and add them to the queue
+                if ($result !== 'skipped') {
+                    $this->discoverLanguageVariants($url, $language, $queue, $seenUrls, $languages);
+                }
+
                 $this->stdout("  → {$result}\n");
             } catch (\Throwable $e) {
                 $stats['errors']++;
                 $this->stderr("  → ОШИБКА: " . $e->getMessage() . "\n");
             }
 
-            if ($current < $totalCount) {
+            // Re-count total for progress display
+            $totalCount = $current + count($queue);
+
+            if (!empty($queue)) {
                 sleep($this->delay);
             }
         }
@@ -108,6 +135,83 @@ class ScraperController extends Controller
         $this->stdout("Ошибок    : {$stats['errors']}\n");
 
         return ExitCode::OK;
+    }
+
+    /**
+     * After processing an announcement, fetch the page again (if needed) and extract
+     * hreflang links to discover Kazakh / English variants.  Queue any new URLs.
+     */
+    private function discoverLanguageVariants(
+        string $sourceUrl,
+        string $currentLang,
+        array &$queue,
+        array &$seenUrls,
+        array $targetLangs
+    ): void {
+        // Only discover variants if the user requested more than one language
+        if (count($targetLangs) < 2) {
+            return;
+        }
+
+        // Fetch the page to extract hreflang links
+        $fetchUrl = $this->appendLangParam($sourceUrl, $currentLang);
+        $html = $this->fetch($fetchUrl, false, $currentLang);
+        if ($html === null) {
+            return;
+        }
+
+        $hreflangLinks = $this->extractHreflangLinks($html);
+        if (empty($hreflangLinks)) {
+            return;
+        }
+
+        // Use the Russian URL as canonical group_key (fall back to current URL slug)
+        $canonicalUrl = $hreflangLinks[self::LANG_RU] ?? $sourceUrl;
+        $groupKey     = $this->extractGroupKey($canonicalUrl);
+
+        foreach ($targetLangs as $targetLang) {
+            if ($targetLang === $currentLang) {
+                continue;
+            }
+            if (isset($hreflangLinks[$targetLang]) && !isset($seenUrls[$hreflangLinks[$targetLang]])) {
+                $variantUrl = $hreflangLinks[$targetLang];
+                $seenUrls[$variantUrl] = true;
+                $queue[] = ['url' => $variantUrl, 'language' => $targetLang, 'group_key' => $groupKey];
+                $this->stdout("  → найден перевод ({$targetLang}): {$variantUrl}\n");
+            }
+        }
+    }
+
+    /**
+     * Parse <link rel="alternate" hreflang="..." href="..."> from HTML.
+     * Returns [lang_code => url] e.g. ['ru' => '...?lang=ru', 'kz' => '...', 'en' => '...?lang=en']
+     */
+    private function extractHreflangLinks(string $html): array
+    {
+        $links = [];
+        // Match both attribute orders: hreflang first or href first
+        if (preg_match_all('/<link[^>]+rel=["\']alternate["\'][^>]*hreflang=["\']([^"\']+)["\'][^>]*href=["\']([^"\']+)["\']/iu', $html, $m)) {
+            foreach ($m[1] as $i => $langCode) {
+                $links[strtolower(substr($langCode, 0, 2))] = $m[2][$i];
+            }
+        }
+        if (preg_match_all('/<link[^>]+href=["\']([^"\']+)["\'][^>]*hreflang=["\']([^"\']+)["\'][^>]*rel=["\']alternate["\']/iu', $html, $m)) {
+            foreach ($m[2] as $i => $langCode) {
+                $links[strtolower(substr($langCode, 0, 2))] = $m[1][$i];
+            }
+        }
+        if (preg_match_all('/<link[^>]+hreflang=["\']([^"\']+)["\'][^>]*href=["\']([^"\']+)["\'][^>]*rel=["\']alternate["\']/iu', $html, $m)) {
+            foreach ($m[1] as $i => $langCode) {
+                $links[strtolower(substr($langCode, 0, 2))] = $m[2][$i];
+            }
+        }
+        if (preg_match_all('/<link[^>]+href=["\']([^"\']+)["\'][^>]*rel=["\']alternate["\'][^>]*hreflang=["\']([^"\']+)["\']/iu', $html, $m)) {
+            foreach ($m[2] as $i => $langCode) {
+                $links[strtolower(substr($langCode, 0, 2))] = $m[1][$i];
+            }
+        }
+
+        return $links;
     }
 
     // -------------------------------------------------------------------------
@@ -149,9 +253,10 @@ class ScraperController extends Controller
         $urls    = [];
         $page    = 1;
         $maxPage = $this->pages ?: PHP_INT_MAX;
+        $categoryUrl = self::CATEGORY_URLS[$language] ?? self::BASE_URL;
 
         while ($page <= $maxPage) {
-            $pageUrl = self::BASE_URL . ($page > 1 ? "page/{$page}/" : '') . '?lang=' . $language;
+            $pageUrl = $categoryUrl . ($page > 1 ? "page/{$page}/" : '') . '?lang=' . $language;
             $this->stdout("  Страница {$page}: {$pageUrl}\n");
 
             $html = $this->fetch($pageUrl, false, $language);
@@ -286,7 +391,7 @@ class ScraperController extends Controller
     // Step 2: parse a single announcement and save to DB
     // -------------------------------------------------------------------------
 
-    private function processAnnouncement(string $sourceUrl, string $language): string
+    private function processAnnouncement(string $sourceUrl, string $language, ?string $groupKey = null): string
     {
         // For Kazakh pages, don't append lang parameter (they're standalone)
         // Kazakh URLs typically start with "habarlandyru-"
@@ -301,9 +406,16 @@ class ScraperController extends Controller
 
         // Look up existing record by source URL slug and language
         $slug     = $this->urlToSlug($sourceUrl, $language);
-        $groupKey = $this->extractGroupKey($sourceUrl);
         $model    = DissertationAnnouncement::findOne(['url' => $slug]);
         $isNew    = ($model === null);
+
+        // Use provided group_key (from hreflang linking) or derive from URL
+        if ($groupKey === null) {
+            // Try to extract from hreflang links on the page itself
+            $hreflangLinks = $this->extractHreflangLinks($html);
+            $canonicalUrl  = $hreflangLinks[self::LANG_RU] ?? $sourceUrl;
+            $groupKey      = $this->extractGroupKey($canonicalUrl);
+        }
 
         if ($isNew) {
             $model = new DissertationAnnouncement();
@@ -314,17 +426,22 @@ class ScraperController extends Controller
             $model->created_by = 1; // system/admin user
         } else {
             $model->language  = $language;
-            if (empty($model->group_key)) {
-                $model->group_key = $groupKey;
-            }
         }
+
+        // Track whether group_key needs updating (for language switching)
+        $oldGroupKey = $model->group_key ?? null;
+        if ($oldGroupKey !== $groupKey) {
+            $model->group_key = $groupKey;
+        }
+        $groupKeyChanged = !$isNew && $oldGroupKey !== $groupKey;
 
         // Detect changes for existing records
         $contentHash = md5($data['title'] . $data['content']);
-        $storedHash  = $isNew ? null : md5($model->title . $model->content);
+        $storedHash  = !$isNew ? md5($model->title . $model->content) : null;
         $createdAtChanged = !$isNew && !empty($data['created_at']) && $data['created_at'] !== $model->created_at;
+        $dateChanged = !$isNew && $data['defense_date'] !== null && $data['defense_date'] !== $model->defense_date;
 
-        if (!$isNew && $contentHash === $storedHash && !$createdAtChanged) {
+        if (!$isNew && $contentHash === $storedHash && !$createdAtChanged && !$groupKeyChanged && !$dateChanged) {
             return 'skipped';
         }
 
@@ -381,13 +498,21 @@ class ScraperController extends Controller
         // Main content area (WordPress typical structure)
         $contentNode = $xpath->query('//div[contains(@class,"entry-content")] | //div[contains(@class,"post-content")]')->item(0);
         if ($contentNode) {
-            $data['content'] = $this->extractContentBeforeZoom($contentNode);
-            if ($data['content'] === '') {
-                $data['content'] = $this->innerHtml($contentNode);
+            // Extract content as plain text (no HTML tags) for non-programmer users
+            $rawHtml = $this->extractContentBeforeZoom($contentNode);
+            if ($rawHtml === '') {
+                $rawHtml = $this->innerHtml($contentNode);
             }
+            $text = trim(html_entity_decode(strip_tags($rawHtml), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            $text = preg_replace('/\s+/', ' ', $text);
+            $data['content'] = $text;
 
             $data['created_at'] = $this->parseSourceCreatedAt($xpath, $contentNode->textContent . ' ' . $data['title']);
-            $text = trim(strip_tags($data['content']));
+
+            // Use the FULL content text (not truncated) for date parsing,
+            // because the date may appear after the Zoom section
+            $fullText = trim(html_entity_decode(strip_tags($contentNode->textContent), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            $fullText = preg_replace('/\s+/', ' ', $fullText);
 
             // Defense date: look for patterns like "2 июля 2026" or "02.07.2026"
             if (preg_match('/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+(\d{4})/ui', $text, $m)) {
@@ -405,6 +530,8 @@ class ScraperController extends Controller
             } elseif (preg_match('/(\d{2})\.(\d{2})\.(\d{4})/', $text, $m)) {
                 $data['defense_date'] = $m[3] . '-' . $m[2] . '-' . $m[1];
             }
+
+            $data['defense_date'] = $this->parseDefenseDate($fullText);
 
             // Contact email
             if (preg_match('/[\w.\-]+@[\w.\-]+\.[a-z]{2,}/i', $text, $em)) {
@@ -442,6 +569,194 @@ class ScraperController extends Controller
         }
 
         return $data;
+    }
+
+    private function parseDefenseDate(string $text): ?string
+    {
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = trim(preg_replace('/\s+/u', ' ', $text));
+        if ($text === '') {
+            return null;
+        }
+
+        $candidates = [];
+        $monthPattern = implode('|', array_map('preg_quote', array_keys($this->monthMap()), array_fill(0, count($this->monthMap()), '/')));
+
+        // Pattern 1: "day month year" — Russian "04 июля 2026", English "4 July 2026"
+        if (preg_match_all('/(\d{1,2})\s+(' . $monthPattern . ')\s*,?\s*(\d{4})/ui', $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            foreach ($matches as $match) {
+                $monthName = mb_strtolower($match[2][0], 'UTF-8');
+                $candidates[] = [
+                    'day' => (int)$match[1][0],
+                    'month' => $this->monthMap()[$monthName] ?? null,
+                    'year' => (int)$match[3][0],
+                    'offset' => $match[0][1],
+                    'length' => strlen($match[0][0]),
+                    'text' => $match[0][0],
+                ];
+            }
+        }
+
+        // Pattern 2: "month day, year" — English "July 4, 2026"
+        if (preg_match_all('/(' . $monthPattern . ')\s+(\d{1,2}),?\s*(\d{4})/ui', $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            foreach ($matches as $match) {
+                $monthName = mb_strtolower($match[1][0], 'UTF-8');
+                $candidates[] = [
+                    'day' => (int)$match[2][0],
+                    'month' => $this->monthMap()[$monthName] ?? null,
+                    'year' => (int)$match[3][0],
+                    'offset' => $match[0][1],
+                    'length' => strlen($match[0][0]),
+                    'text' => $match[0][0],
+                ];
+            }
+        }
+
+        // Pattern 3: "year ж(ылғы) day month(case suffix)" — Kazakh "2026 жылғы 28 мамырда"
+        if (preg_match_all('/(\d{4})\s*(?:жыл?ғ?ы?|ж\.?)\s*(\d{1,2})\s+(\S+)/ui', $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            foreach ($matches as $match) {
+                $monthWord = mb_strtolower($match[3][0], 'UTF-8');
+                // Strip punctuation and common Kazakh case suffixes to get base month name
+                $monthWord = preg_replace('/[,;:.]+$/u', '', $monthWord);
+                $baseMonth = preg_replace('/(да|де|дан|ден|ға|ге|ды|ді|ны|ні|ғы|гі)$/u', '', $monthWord);
+                $monthNum = $this->monthMap()[$baseMonth] ?? null;
+                if ($monthNum !== null) {
+                    $candidates[] = [
+                        'day' => (int)$match[2][0],
+                        'month' => $monthNum,
+                        'year' => (int)$match[1][0],
+                        'offset' => $match[0][1],
+                        'length' => strlen($match[0][0]),
+                        'text' => $match[0][0],
+                    ];
+                }
+            }
+        }
+
+        // Pattern 4: "dd.mm.yyyy" numeric dates
+        if (preg_match_all('/(\d{1,2})[\.\/-](\d{1,2})[\.\/-](\d{4})/u', $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            foreach ($matches as $match) {
+                $candidates[] = [
+                    'day' => (int)$match[1][0],
+                    'month' => (int)$match[2][0],
+                    'year' => (int)$match[3][0],
+                    'offset' => $match[0][1],
+                    'length' => strlen($match[0][0]),
+                    'text' => $match[0][0],
+                ];
+            }
+        }
+
+        if (preg_match_all('/(\d{4})-(\d{1,2})-(\d{1,2})/u', $text, $matches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE)) {
+            foreach ($matches as $match) {
+                $candidates[] = [
+                    'day' => (int)$match[3][0],
+                    'month' => (int)$match[2][0],
+                    'year' => (int)$match[1][0],
+                    'offset' => $match[0][1],
+                    'length' => strlen($match[0][0]),
+                    'text' => $match[0][0],
+                ];
+            }
+        }
+
+        $candidates = array_values(array_filter($candidates, static function (array $candidate): bool {
+            return $candidate['month'] >= 1 && $candidate['month'] <= 12
+                && $candidate['day'] >= 1 && $candidate['day'] <= 31
+                && $candidate['year'] >= 2000 && $candidate['year'] <= 2100;
+        }));
+
+        if (empty($candidates)) {
+            return null;
+        }
+
+        foreach ($candidates as &$candidate) {
+            $candidate['score'] = $this->scoreDefenseDateCandidate($text, $candidate);
+        }
+        unset($candidate);
+
+        usort($candidates, static function (array $a, array $b): int {
+            return ($b['score'] <=> $a['score']) ?: ($a['offset'] <=> $b['offset']);
+        });
+
+        $best = $candidates[0];
+        $time = $this->findTimeNearDate($text, $best['offset'], $best['length']);
+
+        return sprintf(
+            '%04d-%02d-%02d%s',
+            $best['year'],
+            $best['month'],
+            $best['day'],
+            $time ? ' ' . $time : ''
+        );
+    }
+
+    private function monthMap(): array
+    {
+        return [
+            'января' => 1, 'январь' => 1, 'jan' => 1, 'january' => 1, 'қаңтар' => 1,
+            'февраля' => 2, 'февраль' => 2, 'feb' => 2, 'february' => 2, 'ақпан' => 2,
+            'марта' => 3, 'март' => 3, 'mar' => 3, 'march' => 3, 'наурыз' => 3,
+            'апреля' => 4, 'апрель' => 4, 'apr' => 4, 'april' => 4, 'сәуір' => 4,
+            'мая' => 5, 'май' => 5, 'may' => 5, 'мамыр' => 5,
+            'июня' => 6, 'июнь' => 6, 'jun' => 6, 'june' => 6, 'маусым' => 6,
+            'июля' => 7, 'июль' => 7, 'jul' => 7, 'july' => 7, 'шілде' => 7,
+            'августа' => 8, 'август' => 8, 'aug' => 8, 'august' => 8, 'тамыз' => 8,
+            'сентября' => 9, 'сентябрь' => 9, 'sep' => 9, 'sept' => 9, 'september' => 9, 'қыркүйек' => 9,
+            'октября' => 10, 'октябрь' => 10, 'oct' => 10, 'october' => 10, 'қазан' => 10,
+            'ноября' => 11, 'ноябрь' => 11, 'nov' => 11, 'november' => 11, 'қараша' => 11,
+            'декабря' => 12, 'декабрь' => 12, 'dec' => 12, 'december' => 12, 'желтоқсан' => 12,
+        ];
+    }
+
+    private function scoreDefenseDateCandidate(string $text, array $candidate): int
+    {
+        $before = mb_strcut($text, max(0, $candidate['offset'] - 180), min(180, $candidate['offset']), 'UTF-8');
+        $before = preg_replace('/^.*[\.;]/us', '', $before);
+        $after = mb_strcut($text, $candidate['offset'] + $candidate['length'], 180, 'UTF-8');
+        $after = preg_replace('/[\.;].*$/us', '', $after);
+        $window = mb_strtolower($before . ' ' . $candidate['text'] . ' ' . $after, 'UTF-8');
+        $score = 0;
+
+        if (preg_match('/защит|диссертац|состо[ия]т|өтеді|қорға|диссертац|defen[cs]e|dissertation|will be held|phd/ui', $window)) {
+            $score += 10;
+        }
+
+        if (preg_match('/опублик|дата публикации|published|posted|жариялан/ui', $window)) {
+            $score -= 8;
+        }
+
+        if ($this->findTimeNearDate($text, $candidate['offset'], $candidate['length']) !== null) {
+            $score += 2;
+        }
+
+        return $score;
+    }
+
+    private function findTimeNearDate(string $text, int $offset, int $length): ?string
+    {
+        $after = mb_strcut($text, $offset + $length, 180, 'UTF-8');
+        if (preg_match('/^\s*[\.;]/u', $after)) {
+            $after = '';
+        }
+
+        $monthPattern = implode('|', array_map('preg_quote', array_keys($this->monthMap()), array_fill(0, count($this->monthMap()), '/')));
+        if (preg_match('/(?:\d{1,2}[\.\/-]\d{1,2}[\.\/-]\d{4})|(?:\d{4}-\d{1,2}-\d{1,2})|(?:\d{1,2}\s+(?:' . $monthPattern . ')\s*,?\s*\d{4})/ui', $after, $nextDate, PREG_OFFSET_CAPTURE)) {
+            $after = mb_strcut($after, 0, $nextDate[0][1], 'UTF-8');
+        }
+
+        $window = $after;
+
+        if (preg_match('/(?<![\d\.\/-])(?:в|сағат|сағ\.?|at|time|начало|басталуы)?\s*(\d{1,2}):(\d{2})(?!\d)/ui', $window, $match)
+            || preg_match('/(?<![\d\.\/-])(?:в|сағат|сағ\.?|at|time|начало|басталуы)\s+(\d{1,2})\.(\d{2})(?!\.\d)/ui', $window, $match)) {
+            $hour = (int)$match[1];
+            $minute = (int)$match[2];
+            if ($hour >= 0 && $hour <= 23 && $minute >= 0 && $minute <= 59) {
+                return sprintf('%02d:%02d:00', $hour, $minute);
+            }
+        }
+
+        return null;
     }
 
     private function extractContentBeforeZoom(\DOMNode $contentNode): string
