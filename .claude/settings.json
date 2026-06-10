@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.google.com)",
+      "WebFetch(domain:doc-04-3c-sheets.googleusercontent.com)",
+      "Bash(Get-ChildItem C:\\\\Projects\\\\phd_feed -Recurse -File)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "Bash(find /mnt/c/Projects/phd_feed -type f | sort)",
+      "Read(//mnt/c/Projects/**)",
+      "Bash(netstat -ano)",
+      "PowerShell(Get-ChildItem \"C:\\\\Program Files\", \"C:\\\\Program Files \\(x86\\)\" -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"php|xampp|wamp|laragon|mysql|apache|composer\" } | Select-Object FullName)",
+      "PowerShell($env:PATH -split \";\" | Where-Object { $_ -ne \"\" } | Sort-Object)",
+      "PowerShell(Start-Process \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\Docker Desktop.exe\" -ErrorAction SilentlyContinue)",
+      "PowerShell(docker compose -f C:\\\\Projects\\\\phd_feed\\\\docker-compose.yml ps 2>&1)",
+      "Bash(docker compose *)",
+      "PowerShell(docker inspect phd_feed_db --format \"{{json .State.Health}}\" 2>&1 | ConvertFrom-Json | Select-Object -ExpandProperty Log | Select-Object -Last 3 | ForEach-Object { Write-Host \"Exit: $\\($_.ExitCode\\)\"; Write-Host \"Output: $\\($_.Output\\)\" })",
+      "PowerShell(docker logs phd_feed_app 2>&1 | Out-String | Select-String \"SQLSTATE|Exception|Caused|000001|000002\" -AllMatches | ForEach-Object { $_.Matches } | Select-Object -First 10 Value)",
+      "PowerShell(docker exec phd_feed_app php yii migrate --interactive=0 2>&1)"
+    ]
+  }
+}

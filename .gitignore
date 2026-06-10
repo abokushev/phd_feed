@@ -1,0 +1,9 @@
+vendor/
+runtime/logs/
+runtime/cache/
+web/assets/
+web/uploads/
+composer.lock
+.DS_Store
+Thumbs.db
+*.log

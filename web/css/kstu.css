@@ -1,0 +1,450 @@
+/* ============================================================
+   KarTU PhD Feed — Custom Stylesheet
+   Matching kstu.kz design
+   ============================================================ */
+
+/* ---- Variables ---- */
+:root {
+    --kstu-dark-blue: #1c3f73;
+    --kstu-mid-blue:  #2e6da4;
+    --kstu-light-blue:#4a8fc1;
+    --kstu-accent:    #e8a000;
+    --kstu-bg:        #f4f6f9;
+    --kstu-text:      #333;
+    --kstu-border:    #dee2e6;
+}
+
+/* ---- Base ---- */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--kstu-bg);
+    color: var(--kstu-text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+a {
+    color: var(--kstu-mid-blue);
+    transition: color 0.2s;
+}
+
+a:hover {
+    color: var(--kstu-dark-blue);
+}
+
+/* ============================================================
+   HEADER
+============================================================ */
+.site-header {
+    background: var(--kstu-dark-blue);
+    border-bottom: 3px solid var(--kstu-accent);
+}
+
+.header-logo-link {
+    text-decoration: none;
+}
+
+.logo-circle {
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    background: var(--kstu-accent);
+    color: var(--kstu-dark-blue);
+    font-weight: 900;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.1;
+    border: 2px solid rgba(255,255,255,0.3);
+    flex-shrink: 0;
+    letter-spacing: -0.5px;
+}
+
+.header-title {
+    color: #fff;
+}
+
+.site-name-main {
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+}
+
+.site-name-sub {
+    font-size: 0.82rem;
+    opacity: 0.85;
+    font-style: italic;
+}
+
+.header-contacts {
+    color: rgba(255,255,255,0.85);
+    font-size: 0.82rem;
+}
+
+/* ---- Language Switcher ---- */
+.lang-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.lang-link {
+    color: rgba(255,255,255,0.75);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: background 0.2s, color 0.2s;
+}
+
+.lang-link:hover,
+.lang-link.active {
+    color: #fff;
+    background: rgba(255,255,255,0.2);
+}
+
+.lang-link.active {
+    background: var(--kstu-accent);
+    color: var(--kstu-dark-blue);
+}
+
+.lang-sep {
+    color: rgba(255,255,255,0.35);
+    font-size: 0.75rem;
+}
+
+/* ============================================================
+   NAVIGATION BAR
+============================================================ */
+.site-nav {
+    background: var(--kstu-mid-blue);
+    min-height: 46px;
+    border-bottom: 1px solid rgba(0,0,0,0.15);
+}
+
+.site-nav .nav-link {
+    color: rgba(255,255,255,0.9) !important;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 0;
+    transition: background 0.2s;
+}
+
+.site-nav .nav-link:hover {
+    background: rgba(255,255,255,0.15);
+    color: #fff !important;
+}
+
+.site-nav .navbar-toggler {
+    border-color: rgba(255,255,255,0.5);
+}
+
+.site-nav .navbar-toggler-icon {
+    filter: invert(1);
+}
+
+/* ============================================================
+   BREADCRUMBS
+============================================================ */
+.breadcrumbs-bar {
+    background: #e9ecef;
+    border-bottom: 1px solid var(--kstu-border);
+}
+
+.breadcrumb {
+    font-size: 0.85rem;
+    margin-bottom: 0;
+}
+
+.breadcrumb-item a {
+    color: var(--kstu-mid-blue);
+    text-decoration: none;
+}
+
+.breadcrumb-item a:hover {
+    text-decoration: underline;
+}
+
+.breadcrumb-item.active {
+    color: #6c757d;
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+    content: "›";
+    color: #adb5bd;
+}
+
+/* ============================================================
+   MAIN CONTENT
+============================================================ */
+.site-main {
+    flex: 1;
+    padding-bottom: 2rem;
+}
+
+.page-title {
+    color: var(--kstu-dark-blue);
+    font-weight: 700;
+}
+
+.heading-divider {
+    height: 3px;
+    width: 60px;
+    background: var(--kstu-accent);
+    border-radius: 2px;
+    margin-top: 8px;
+}
+
+/* ============================================================
+   ANNOUNCEMENT LIST
+============================================================ */
+.announcement-card .card {
+    border-left: 4px solid var(--kstu-mid-blue) !important;
+    transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.announcement-card .card:hover {
+    box-shadow: 0 4px 18px rgba(44,80,140,0.13) !important;
+    transform: translateY(-1px);
+}
+
+.announcement-title {
+    font-size: 1.08rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.announcement-link {
+    color: var(--kstu-dark-blue);
+    text-decoration: none;
+}
+
+.announcement-link:hover {
+    color: var(--kstu-mid-blue);
+    text-decoration: underline;
+}
+
+.announcement-meta {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.announcement-excerpt {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #555;
+}
+
+.read-more-link {
+    color: var(--kstu-mid-blue);
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px dashed var(--kstu-mid-blue);
+}
+
+.read-more-link:hover {
+    color: var(--kstu-dark-blue);
+    border-bottom-color: var(--kstu-dark-blue);
+}
+
+/* ============================================================
+   ANNOUNCEMENT DETAIL PAGE
+============================================================ */
+.announcement-detail-title {
+    color: var(--kstu-dark-blue);
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.35;
+    border-bottom: 2px solid var(--kstu-accent);
+    padding-bottom: 0.75rem;
+}
+
+.announcement-content {
+    font-size: 1rem;
+    line-height: 1.75;
+    color: #2c2c2c;
+}
+
+.announcement-content h2,
+.announcement-content h3,
+.announcement-content h4 {
+    color: var(--kstu-dark-blue);
+    margin-top: 1.5rem;
+}
+
+.announcement-content p {
+    margin-bottom: 1rem;
+}
+
+.announcement-content ul,
+.announcement-content ol {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+}
+
+.announcement-content a {
+    color: var(--kstu-mid-blue);
+}
+
+.meta-box {
+    font-size: 0.88rem;
+    color: #495057;
+}
+
+/* ============================================================
+   PAGINATION
+============================================================ */
+.pagination .page-link {
+    color: var(--kstu-mid-blue);
+    border-color: var(--kstu-border);
+    padding: 0.35rem 0.65rem;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: var(--kstu-mid-blue);
+    border-color: var(--kstu-mid-blue);
+    color: #fff;
+}
+
+.pagination .page-link:hover {
+    background-color: #e8f1fb;
+    color: var(--kstu-dark-blue);
+}
+
+/* ============================================================
+   MANAGE / ADMIN AREA
+============================================================ */
+.table thead.table-dark th {
+    background-color: var(--kstu-dark-blue);
+    border-color: rgba(255,255,255,0.1);
+}
+
+.announcement-form .nav-tabs {
+    border-bottom: 2px solid var(--kstu-mid-blue);
+}
+
+.announcement-form .nav-tabs .nav-link {
+    color: #495057;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    padding: 0.6rem 1.1rem;
+    font-weight: 500;
+    transition: color 0.15s;
+}
+
+.announcement-form .nav-tabs .nav-link.active {
+    color: var(--kstu-dark-blue);
+    border-bottom-color: var(--kstu-mid-blue);
+    background: transparent;
+    font-weight: 700;
+}
+
+.announcement-form .nav-tabs .nav-link:hover:not(.active) {
+    color: var(--kstu-mid-blue);
+    border-bottom-color: var(--kstu-light-blue);
+}
+
+.announcement-form .tab-pane .card {
+    min-height: 400px;
+}
+
+/* ============================================================
+   LOGIN PAGE
+============================================================ */
+.login-page .card-header {
+    background: var(--kstu-dark-blue) !important;
+}
+
+/* ============================================================
+   FOOTER
+============================================================ */
+.site-footer {
+    background: var(--kstu-dark-blue);
+    color: rgba(255,255,255,0.8);
+    margin-top: auto;
+}
+
+.footer-heading {
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+}
+
+.footer-text {
+    color: rgba(255,255,255,0.7);
+    line-height: 1.7;
+}
+
+.footer-link {
+    color: rgba(255,255,255,0.8);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.footer-link:hover {
+    color: var(--kstu-accent);
+}
+
+.footer-hr {
+    border-color: rgba(255,255,255,0.15);
+    margin: 0;
+}
+
+.footer-copyright {
+    color: rgba(255,255,255,0.55);
+    font-size: 0.82rem;
+}
+
+/* ============================================================
+   UTILITIES
+============================================================ */
+.text-kstu {
+    color: var(--kstu-dark-blue);
+}
+
+.bg-kstu {
+    background-color: var(--kstu-dark-blue);
+}
+
+.border-kstu {
+    border-color: var(--kstu-mid-blue) !important;
+}
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+@media (max-width: 767.98px) {
+    .site-name-main {
+        font-size: 0.9rem;
+    }
+    .site-name-sub {
+        font-size: 0.74rem;
+    }
+    .logo-circle {
+        width: 46px;
+        height: 46px;
+        font-size: 12px;
+    }
+    .announcement-detail-title {
+        font-size: 1.2rem;
+    }
+    .header-contacts {
+        display: none;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .container-fluid {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+}

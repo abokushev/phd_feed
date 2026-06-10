@@ -1,0 +1,6 @@
+vendor/
+runtime/
+web/assets/
+web/uploads/
+.git/
+*.md

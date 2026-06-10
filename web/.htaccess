@@ -1,0 +1,16 @@
+Options -Indexes
+Options +FollowSymLinks
+
+RewriteEngine On
+
+# Deny access to sensitive files
+RewriteRule ^(config|migrations|models|controllers|views|messages|runtime|vendor) - [F,L]
+
+# Redirect to HTTPS (uncomment if SSL is configured)
+# RewriteCond %{HTTPS} off
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Route all requests to index.php if the file/directory does not exist
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . index.php [L]

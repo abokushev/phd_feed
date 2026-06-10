@@ -1,0 +1,55 @@
+services:
+
+  db:
+    image: mysql:8.0
+    container_name: phd_feed_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: phd_feed
+      MYSQL_USER: phd_user
+      MYSQL_PASSWORD: phd_pass
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: phd_feed_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/var/www/html
+    environment:
+      DB_HOST: db
+      DB_NAME: phd_feed
+      DB_USER: phd_user
+      DB_PASSWORD: phd_pass
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    extra_hosts:
+      - "www.kstu.kz:45.132.85.2"
+
+  nginx:
+    image: nginx:alpine
+    container_name: phd_feed_nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+
+volumes:
+  db_data:

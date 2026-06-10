@@ -1,0 +1,32 @@
+{
+    "name": "kartu/phd-feed",
+    "description": "PhD Dissertation Defense Announcements – KarTU",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "yiisoft/yii2": "~2.0.47",
+        "yiisoft/yii2-bootstrap5": "~2.0.0"
+    },
+    "require-dev": {
+        "yiisoft/yii2-debug": "~2.1.0",
+        "yiisoft/yii2-gii": "~2.2.0"
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://asset-packagist.org"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "app\\": ""
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "yiisoft/yii2-composer": true,
+            "composer/installers": true
+        }
+    },
+    "minimum-stability": "stable"
+}
