@@ -498,14 +498,16 @@ class ScraperController extends Controller
         // Main content area (WordPress typical structure)
         $contentNode = $xpath->query('//div[contains(@class,"entry-content")] | //div[contains(@class,"post-content")]')->item(0);
         if ($contentNode) {
-            // Extract content as plain text (no HTML tags) for non-programmer users
+            // Extract content as HTML for rich text editing in admin panel
             $rawHtml = $this->extractContentBeforeZoom($contentNode);
             if ($rawHtml === '') {
                 $rawHtml = $this->innerHtml($contentNode);
             }
+            $data['content'] = $rawHtml;
+
+            // Plain text version for email/date extraction
             $text = trim(html_entity_decode(strip_tags($rawHtml), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
             $text = preg_replace('/\s+/', ' ', $text);
-            $data['content'] = $text;
 
             $data['created_at'] = $this->parseSourceCreatedAt($xpath, $contentNode->textContent . ' ' . $data['title']);
 
