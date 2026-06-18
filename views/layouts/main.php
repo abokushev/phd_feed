@@ -26,6 +26,7 @@ $langUrl = static function (string $l): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= Html::encode($this->title ?? Yii::$app->params['siteTitle']) ?></title>
+    <?= Html::csrfMetaTags() ?>
     <?php $this->head() ?>
     <!-- Bootstrap 5 -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
@@ -63,11 +64,11 @@ $langUrl = static function (string $l): string {
                     <i class="bi bi-envelope-fill me-1"></i>info@kartu.kz
                 </div>
                 <div class="lang-switcher">
-                    <a href="<?= $langUrl('ru') ?>" class="lang-link <?= $lang === 'ru' ? 'active' : '' ?>">RU</a>
+                    <a href="<?= $langUrl('ru') ?>" class="lang-link <?= $lang === 'ru' ? 'active' : '' ?>" data-lang="ru">RU</a>
                     <span class="lang-sep">|</span>
-                    <a href="<?= $langUrl('kz') ?>" class="lang-link <?= $lang === 'kz' ? 'active' : '' ?>">ҚАЗ</a>
+                    <a href="<?= $langUrl('kz') ?>" class="lang-link <?= $lang === 'kz' ? 'active' : '' ?>" data-lang="kz">ҚАЗ</a>
                     <span class="lang-sep">|</span>
-                    <a href="<?= $langUrl('en') ?>" class="lang-link <?= $lang === 'en' ? 'active' : '' ?>">EN</a>
+                    <a href="<?= $langUrl('en') ?>" class="lang-link <?= $lang === 'en' ? 'active' : '' ?>" data-lang="en">EN</a>
                 </div>
             </div>
         </div>

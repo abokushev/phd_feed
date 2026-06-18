@@ -11,6 +11,8 @@ use yii\db\ActiveRecord;
  * @property int    $id
  * @property int    $announcement_id
  * @property string $document_name
+ * @property string|null $display_name
+ * @property bool   $is_global
  * @property string $file_path
  * @property string $uploaded_at
  */
@@ -26,8 +28,11 @@ class AnnouncementDocument extends ActiveRecord
         return [
             [['announcement_id', 'document_name', 'file_path'], 'required'],
             [['announcement_id'], 'integer'],
-            [['document_name'], 'string', 'max' => 500],
+            [['is_global'], 'boolean'],
+            [['document_name', 'display_name'], 'string', 'max' => 500],
             [['file_path'], 'string', 'max' => 2000],
+            [['display_name'], 'default', 'value' => null],
+            [['is_global'], 'default', 'value' => true],
             [['announcement_id'], 'exist', 'skipOnError' => true,
                 'targetClass' => DissertationAnnouncement::class,
                 'targetAttribute' => ['announcement_id' => 'id']],
@@ -40,6 +45,8 @@ class AnnouncementDocument extends ActiveRecord
             'id'              => Yii::t('app', 'ID'),
             'announcement_id' => Yii::t('app', 'Объявление'),
             'document_name'   => Yii::t('app', 'Название документа'),
+            'display_name'    => Yii::t('app', 'Отображаемое имя'),
+            'is_global'       => Yii::t('app', 'Относится к объявлению на любом языке'),
             'file_path'       => Yii::t('app', 'Путь к файлу'),
             'uploaded_at'     => Yii::t('app', 'Загружено'),
         ];

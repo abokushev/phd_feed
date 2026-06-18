@@ -95,6 +95,33 @@ class DissertationAnnouncement extends ActiveRecord
         return $this->hasMany(AnnouncementDocument::class, ['announcement_id' => 'id']);
     }
 
+    public function getLinkedAnnouncements(): \yii\db\ActiveQuery
+    {
+        return $this->hasMany(DissertationAnnouncement::class, ['id' => 'linked_announcement_id'])
+            ->viaTable('{{%announcement_links}}', ['announcement_id' => 'id']);
+    }
+
+    public function getLinkedByAnnouncements(): \yii\db\ActiveQuery
+    {
+        return $this->hasMany(DissertationAnnouncement::class, ['id' => 'announcement_id'])
+            ->viaTable('{{%announcement_links}}', ['linked_announcement_id' => 'id']);
+    }
+
+    public function getAnnouncementLinks(): \yii\db\ActiveQuery
+    {
+        return $this->hasMany(AnnouncementLink::class, ['announcement_id' => 'id']);
+    }
+
+    /**
+     * Get IDs of linked announcements for form population.
+     */
+    public function getLinkedIds(): array
+    {
+        return $this->linkedAnnouncements
+            ? $this->linkedAnnouncements->select('id')->column()
+            : [];
+    }
+
     public function getTranslations(): \yii\db\ActiveQuery
     {
         return static::find()

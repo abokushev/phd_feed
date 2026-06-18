@@ -7,8 +7,23 @@ use yii\helpers\Html;
 use yii\helpers\Url;
 use app\models\DissertationAnnouncement;
 use app\models\AnnouncementDocument;
+use app\models\DocumentDisplayName;
 
 $isNew = $model->isNewRecord;
+$languageSwitchUrls = [];
+if (!$isNew) {
+    foreach ([DissertationAnnouncement::LANG_RU, DissertationAnnouncement::LANG_KZ, DissertationAnnouncement::LANG_EN] as $language) {
+        $languageSwitchUrls[$language] = Url::to([
+            '/manage/switch-language',
+            'id' => $model->id,
+            'language' => $language,
+            'lang' => $language,
+        ]);
+    }
+}
+$documentDisplayNameOptions = !$isNew && !Yii::$app->user->isGuest
+    ? DocumentDisplayName::getList((int) Yii::$app->user->id, $model->language)
+    : [];
 ?>
 
 <?php $form = \yii\bootstrap5\ActiveForm::begin([
@@ -79,17 +94,9 @@ $isNew = $model->isNewRecord;
                         <?php endif; ?>
                     </div>
 
-                    <div class="col-md-4 mb-3">
-                        <label class="form-label fw-semibold"><?= Yii::t('app', 'Язык') ?></label>
-                        <?= Html::dropDownList(
-                            'DissertationAnnouncement[language]',
-                            $model->language,
-                            DissertationAnnouncement::getLanguageList(),
-                            ['class' => 'form-select' . ($model->hasErrors('language') ? ' is-invalid' : '')]
-                        ) ?>
-                    </div>
+                    <input type="hidden" name="DissertationAnnouncement[language]" value="<?= Html::encode($model->language) ?>">
 
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-6 mb-3">
                         <label class="form-label fw-semibold"><?= Yii::t('app', 'Статус') ?></label>
                         <?= Html::dropDownList(
                             'DissertationAnnouncement[status]',
@@ -100,7 +107,7 @@ $isNew = $model->isNewRecord;
                         <div class="form-text"><?= Yii::t('app', '"Опубликовано" — объявление видно на сайте') ?></div>
                     </div>
 
-                    <div class="col-md-4 mb-3">
+                    <div class="col-md-6 mb-3">
                         <label class="form-label fw-semibold"><?= Yii::t('app', 'Дата защиты') ?></label>
                         <input type="datetime-local" name="DissertationAnnouncement[defense_date]"
                                class="form-control <?= $model->hasErrors('defense_date') ? 'is-invalid' : '' ?>"
@@ -220,38 +227,7 @@ $isNew = $model->isNewRecord;
                     <i class="bi bi-paperclip me-2"></i><?= Yii::t('app', 'Документы') ?>
                 </h5>
 
-                <?php if (!$isNew && !empty($model->documents)): ?>
-                <div class="existing-docs mb-4">
-                    <h6 class="fw-semibold mb-3"><?= Yii::t('app', 'Прикреплённые документы') ?>:</h6>
-                    <ul class="list-group">
-                        <?php foreach ($model->documents as $doc): ?>
-                        <li class="list-group-item d-flex align-items-center gap-3">
-                            <i class="bi <?= $doc->getFileIcon() ?> fs-5"></i>
-                            <div class="flex-grow-1">
-                                <div class="fw-semibold"><?= Html::encode($doc->document_name) ?></div>
-                                <small class="text-muted"><?= Html::encode($doc->file_path) ?></small>
-                            </div>
-                            <small class="text-muted me-2">
-                                <?= Html::encode((new DateTime($doc->uploaded_at))->format('d.m.Y')) ?>
-                            </small>
-                            <a href="<?= Html::encode($doc->getDownloadUrl()) ?>"
-                               target="_blank" class="btn btn-sm btn-outline-secondary me-1"
-                               title="<?= Yii::t('app', 'Скачать') ?>">
-                                <i class="bi bi-download"></i>
-                            </a>
-                            <?= Html::beginForm(['/manage/delete-document', 'id' => $doc->id], 'post', [
-                                'onsubmit' => 'return confirm("' . Yii::t('app', 'Удалить документ?') . '")',
-                                'style' => 'display:inline',
-                            ]) ?>
-                            <button type="submit" class="btn btn-sm btn-outline-danger"
-                                    title="<?= Yii::t('app', 'Удалить') ?>">
-                                <i class="bi bi-trash3"></i>
-                            </button>
-                            <?= Html::endForm() ?>
-                        </li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
+<?php if (!$isNew && !empty($model->documents)): ?>
                 <?php endif; ?>
 
                 <?php if ($isNew): ?>
@@ -260,20 +236,100 @@ $isNew = $model->isNewRecord;
                     <?= Yii::t('app', 'Сначала сохраните объявление, затем можно загружать документы.') ?>
                 </div>
                 <?php else: ?>
-                <div class="upload-section">
-                    <h6 class="fw-semibold mb-3"><?= Yii::t('app', 'Загрузить новые файлы') ?>:</h6>
-                    <div class="mb-3">
-                        <input type="file" name="documents[]" id="documents"
-                               class="form-control"
-                               multiple
-                               accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt">
-                        <div class="form-text">
-                            <?= Yii::t('app', 'Поддерживаемые форматы: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, ZIP, RAR. Можно выбрать несколько файлов.') ?>
+                <!-- Upload form -->
+                <div class="card bg-light border-0 mb-3">
+                    <div class="card-body p-3">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-semibold"><?= Yii::t('app', 'Файл') ?></label>
+                                <input type="file" id="doc-file-input"
+                                       class="form-control form-control-sm"
+                                       accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar,.txt">
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small fw-semibold"><?= Yii::t('app', 'Отображаемое имя') ?></label>
+                                <select id="doc-display-name" class="form-select form-select-sm">
+                                    <option value=""><?= Yii::t('app', '— Без имени —') ?></option>
+                                    <?php foreach ($documentDisplayNameOptions as $displayNameId => $displayName): ?>
+                                        <option value="<?= Html::encode($displayName) ?>" data-id="<?= (int) $displayNameId ?>">
+                                            <?= Html::encode($displayName) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="input-group input-group-sm mt-2">
+                                    <input type="text" id="doc-display-name-new"
+                                           class="form-control"
+                                           placeholder="<?= Yii::t('app', 'Новое имя') ?>">
+                                    <button type="button" id="btn-add-display-name"
+                                            class="btn btn-outline-secondary"
+                                            title="<?= Yii::t('app', 'Добавить имя') ?>">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
+                                    <button type="button" id="btn-delete-display-name"
+                                            class="btn btn-outline-danger"
+                                            title="<?= Yii::t('app', 'Удалить выбранное имя') ?>">
+                                        <i class="bi bi-trash3"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input" type="checkbox" id="doc-is-global" checked>
+                                    <label class="form-check-label small" for="doc-is-global">
+                                        <?= Yii::t('app', 'На любом языке') ?>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-12 d-flex gap-2">
+                                <button type="button" id="btn-upload-doc" class="btn btn-primary btn-sm flex-grow-1">
+                                    <i class="bi bi-upload me-1"></i><?= Yii::t('app', 'Загрузить') ?>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div id="file-preview" class="mt-2"></div>
                 </div>
+                <div id="upload-progress" class="text-muted small mb-2" style="display:none;">
+                    <div class="spinner-border spinner-border-sm me-1"></div><?= Yii::t('app', 'Загрузка...') ?>
+                </div>
+                <div id="display-name-error" class="alert alert-danger small py-2 mb-2" style="display:none;"></div>
+                <div id="upload-error" class="alert alert-danger small py-2 mb-2" style="display:none;"></div>
                 <?php endif; ?>
+
+                <!-- Documents list -->
+                <div id="documents-list">
+                <?php if (!$isNew && !empty($model->documents)): ?>
+                    <?php foreach ($model->documents as $doc): ?>
+                    <div class="list-group-item d-flex align-items-center gap-2 py-2" data-doc-id="<?= $doc->id ?>">
+                        <i class="bi <?= $doc->getFileIcon() ?> fs-5"></i>
+                        <div class="flex-grow-1 min-width-0">
+                            <div class="fw-semibold small">
+                                <?php if ($doc->display_name): ?>
+                                    <span class="badge bg-info text-dark me-1"><?= Html::encode($doc->display_name) ?></span>
+                                <?php endif; ?>
+                                <?= Html::encode($doc->document_name) ?>
+                            </div>
+                            <small class="text-muted">
+                                <?php if ($doc->is_global): ?>
+                                    <span class="badge bg-success"><?= Yii::t('app', 'На любом языке') ?></span>
+                                <?php else: ?>
+                                    <span class="badge bg-secondary"><?= Yii::t('app', 'Только это объявление') ?></span>
+                                <?php endif; ?>
+                            </small>
+                        </div>
+                        <a href="<?= Html::encode($doc->getDownloadUrl()) ?>"
+                           target="_blank" class="btn btn-sm btn-outline-secondary"
+                           title="<?= Yii::t('app', 'Скачать') ?>">
+                            <i class="bi bi-download"></i>
+                        </a>
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-delete-doc"
+                                data-doc-id="<?= $doc->id ?>"
+                                title="<?= Yii::t('app', 'Удалить') ?>">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+                </div>
 
             </div>
         </div>
@@ -748,6 +804,7 @@ function initWordEditor() {
     function syncToTextarea() {
         textarea.value = editor.innerHTML;
     }
+    window.syncWordEditorContent = syncToTextarea;
     editor.addEventListener('input', syncToTextarea);
     editor.addEventListener('keyup', refreshToolbar);
     editor.addEventListener('mouseup', refreshToolbar);
@@ -841,6 +898,37 @@ function initWordEditor() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    function getMetaContent(name) {
+        var meta = document.querySelector('meta[name="' + name + '"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
+    function getCsrfParam() {
+        return getMetaContent('csrf-param') || <?= json_encode(Yii::$app->request->csrfParam) ?>;
+    }
+
+    function getCsrfToken() {
+        var param = getCsrfParam();
+        var input = document.getElementsByName(param)[0];
+        return getMetaContent('csrf-token') || (input ? input.value : <?= json_encode(Yii::$app->request->csrfToken) ?>);
+    }
+
+    function appendCsrf(formData) {
+        formData.append(getCsrfParam(), getCsrfToken());
+    }
+
+    function escapeHtml(value) {
+        var div = document.createElement('div');
+        div.textContent = value == null ? '' : String(value);
+        return div.innerHTML;
+    }
+
+    function syncEditor() {
+        if (typeof window.syncWordEditorContent === 'function') {
+            window.syncWordEditorContent();
+        }
+    }
+
     var urlField = document.getElementById('url-field');
     if (urlField) {
         urlField.addEventListener('input', function() {
@@ -848,26 +936,253 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // File preview
-    var fileInput = document.getElementById('documents');
-    var preview   = document.getElementById('file-preview');
-    if (fileInput && preview) {
-        fileInput.addEventListener('change', function() {
-            preview.innerHTML = '';
-            if (this.files.length === 0) return;
-            var ul = document.createElement('ul');
-            ul.className = 'list-group';
-            for (var i = 0; i < this.files.length; i++) {
-                var li = document.createElement('li');
-                li.className = 'list-group-item d-flex align-items-center small py-1';
-                li.innerHTML = '<i class="bi bi-file-earmark me-2"></i>' +
-                    '<span>' + this.files[i].name + '</span>' +
-                    '<span class="ms-auto text-muted">' + (this.files[i].size / 1024).toFixed(1) + ' KB</span>';
-                ul.appendChild(li);
-            }
-            preview.appendChild(ul);
+    var switchLanguageUrls = <?= json_encode($languageSwitchUrls, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+    var currentLanguage = <?= json_encode($model->language) ?>;
+    var addDisplayNameUrl = <?= json_encode(Url::to(['/manage/add-document-display-name'])) ?>;
+    var deleteDisplayNameUrl = <?= json_encode(Url::to(['/manage/delete-document-display-name', 'id' => ''])) ?>;
+    var announcementForm = document.getElementById('announcement-form');
+    if (announcementForm && Object.keys(switchLanguageUrls).length) {
+        document.querySelectorAll('.lang-switcher .lang-link[data-lang]').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                var language = link.getAttribute('data-lang');
+                if (!language || language === currentLanguage || !switchLanguageUrls[language]) {
+                    return;
+                }
+
+                e.preventDefault();
+                syncEditor();
+                announcementForm.action = switchLanguageUrls[language];
+                announcementForm.method = 'post';
+                announcementForm.submit();
+            });
         });
     }
+
+    function showDisplayNameError(message) {
+        var errorDiv = document.getElementById('display-name-error');
+        if (!errorDiv) return;
+        errorDiv.textContent = message || '';
+        errorDiv.style.display = message ? 'block' : 'none';
+    }
+
+    function requestJson(url, formData) {
+        appendCsrf(formData);
+        return fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': getCsrfToken()
+            }
+        }).then(function(r) {
+            return r.json().catch(function() {
+                return {success: false, error: 'Server error: ' + r.status};
+            });
+        });
+    }
+
+    function findDisplayNameOption(select, id, name) {
+        if (!select) return null;
+        var options = select.querySelectorAll('option');
+        for (var i = 0; i < options.length; i++) {
+            if ((id && options[i].dataset.id === String(id)) || options[i].value === name) {
+                return options[i];
+            }
+        }
+        return null;
+    }
+
+    function upsertDisplayNameOption(displayName) {
+        var select = document.getElementById('doc-display-name');
+        if (!select || !displayName) return;
+
+        var option = findDisplayNameOption(select, displayName.id, displayName.name);
+        if (!option) {
+            option = document.createElement('option');
+            select.appendChild(option);
+        }
+
+        option.value = displayName.name;
+        option.textContent = displayName.name;
+        option.dataset.id = displayName.id;
+        select.value = displayName.name;
+    }
+
+    var btnAddDisplayName = document.getElementById('btn-add-display-name');
+    if (btnAddDisplayName) {
+        btnAddDisplayName.addEventListener('click', function() {
+            var input = document.getElementById('doc-display-name-new');
+            var name = input ? input.value.trim() : '';
+            if (!name) {
+                showDisplayNameError(<?= json_encode(Yii::t('app', 'Введите отображаемое имя.')) ?>);
+                return;
+            }
+
+            showDisplayNameError('');
+            btnAddDisplayName.disabled = true;
+
+            var formData = new FormData();
+            formData.append('language', currentLanguage);
+            formData.append('name', name);
+
+            requestJson(addDisplayNameUrl, formData).then(function(resp) {
+                btnAddDisplayName.disabled = false;
+                if (resp.success && resp.displayName) {
+                    upsertDisplayNameOption(resp.displayName);
+                    if (input) input.value = '';
+                } else {
+                    showDisplayNameError(resp.error || <?= json_encode(Yii::t('app', 'Не удалось добавить имя.')) ?>);
+                }
+            });
+        });
+    }
+
+    var btnDeleteDisplayName = document.getElementById('btn-delete-display-name');
+    if (btnDeleteDisplayName) {
+        btnDeleteDisplayName.addEventListener('click', function() {
+            var select = document.getElementById('doc-display-name');
+            var option = select ? select.options[select.selectedIndex] : null;
+            var id = option ? option.dataset.id : '';
+            if (!id) {
+                showDisplayNameError(<?= json_encode(Yii::t('app', 'Выберите имя из списка.')) ?>);
+                return;
+            }
+            if (!confirm(<?= json_encode(Yii::t('app', 'Удалить выбранное имя из списка?')) ?>)) {
+                return;
+            }
+
+            showDisplayNameError('');
+            btnDeleteDisplayName.disabled = true;
+
+            requestJson(deleteDisplayNameUrl + id, new FormData()).then(function(resp) {
+                btnDeleteDisplayName.disabled = false;
+                if (resp.success) {
+                    option.remove();
+                    select.value = '';
+                } else {
+                    showDisplayNameError(resp.error || <?= json_encode(Yii::t('app', 'Не удалось удалить имя.')) ?>);
+                }
+            });
+        });
+    }
+
+    // AJAX Document Upload
+    var btnUpload = document.getElementById('btn-upload-doc');
+    if (btnUpload) {
+        btnUpload.addEventListener('click', function() {
+            var fileInput = document.getElementById('doc-file-input');
+            var displayName = document.getElementById('doc-display-name');
+            var isGlobal = document.getElementById('doc-is-global');
+            var progress = document.getElementById('upload-progress');
+            var errorDiv = document.getElementById('upload-error');
+
+            if (!fileInput || !fileInput.files.length) {
+                errorDiv.textContent = <?= json_encode(Yii::t('app', 'Выберите файл для загрузки')) ?>;
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            errorDiv.style.display = 'none';
+            progress.style.display = 'block';
+            btnUpload.disabled = true;
+
+            var formData = new FormData();
+            formData.append('document_file', fileInput.files[0]);
+            formData.append('announcement_id', <?= (int)$model->id ?>);
+            formData.append('display_name', displayName.value);
+            formData.append('is_global', isGlobal && isGlobal.checked ? '1' : '0');
+            appendCsrf(formData);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', <?= json_encode(Url::to(['/manage/upload-document'])) ?>, true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('X-CSRF-Token', getCsrfToken());
+
+            xhr.onload = function() {
+                progress.style.display = 'none';
+                btnUpload.disabled = false;
+                try {
+                    var resp = JSON.parse(xhr.responseText);
+                    if (xhr.status >= 200 && xhr.status < 300 && resp.success) {
+                        // Add document to the list
+                        var list = document.getElementById('documents-list');
+                        var doc = resp.document;
+                        var iconClass = doc.file_icon || 'bi-file-earmark';
+                        var div = document.createElement('div');
+                        div.className = 'list-group-item d-flex align-items-center gap-2 py-2';
+                        div.setAttribute('data-doc-id', doc.id);
+                        var scopeBadge = doc.is_global
+                            ? '<span class="badge bg-success"><?= Yii::t('app', 'На любом языке') ?></span>'
+                            : '<span class="badge bg-secondary"><?= Yii::t('app', 'Только это объявление') ?></span>';
+                        div.innerHTML =
+                            '<i class="bi ' + iconClass + ' fs-5"></i>' +
+                            '<div class="flex-grow-1 min-width-0">' +
+                                '<div class="fw-semibold small">' +
+                                    (doc.display_name ? '<span class="badge bg-info text-dark me-1">' + escapeHtml(doc.display_name) + '</span>' : '') +
+                                    escapeHtml(doc.document_name) +
+                                '</div>' +
+                                '<small class="text-muted">' +
+                                    scopeBadge +
+                                '</small>' +
+                            '</div>' +
+                            '<a href="' + escapeHtml(doc.download_url) + '" target="_blank" class="btn btn-sm btn-outline-secondary" title="<?= Yii::t('app', 'Скачать') ?>"><i class="bi bi-download"></i></a>' +
+                            '<button type="button" class="btn btn-sm btn-outline-danger btn-delete-doc" data-doc-id="' + doc.id + '" title="<?= Yii::t('app', 'Удалить') ?>"><i class="bi bi-trash3"></i></button>';
+                        list.appendChild(div);
+
+                        // Reset form
+                        fileInput.value = '';
+                        displayName.selectedIndex = 0;
+                    } else {
+                        errorDiv.textContent = resp.error || 'Upload failed';
+                        errorDiv.style.display = 'block';
+                    }
+                } catch(e) {
+                    errorDiv.textContent = xhr.status ? ('Server error: ' + xhr.status) : 'Server error';
+                    errorDiv.style.display = 'block';
+                }
+            };
+
+            xhr.onerror = function() {
+                progress.style.display = 'none';
+                btnUpload.disabled = false;
+                errorDiv.textContent = 'Network error';
+                errorDiv.style.display = 'block';
+            };
+
+            xhr.send(formData);
+        });
+    }
+
+    // AJAX Document Delete
+    document.getElementById('documents-list').addEventListener('click', function(e) {
+        var btn = e.target.closest('.btn-delete-doc');
+        if (!btn) return;
+        if (!confirm(<?= json_encode(Yii::t('app', 'Удалить документ?')) ?>)) return;
+
+        var docId = btn.getAttribute('data-doc-id');
+        var formData = new FormData();
+        appendCsrf(formData);
+
+        fetch(<?= json_encode(Url::to(['/manage/delete-document', 'id' => ''])) ?> + docId, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-Token': getCsrfToken()
+            }
+        }).then(function(r) {
+            return r.json().catch(function() {
+                return {success: r.ok, error: 'Server error: ' + r.status};
+            });
+        }).then(function(resp) {
+            if (resp.success) {
+                var item = btn.closest('[data-doc-id]');
+                if (item) item.remove();
+            } else {
+                alert(resp.error || 'Delete failed');
+            }
+        });
+    });
 
     // Init editor when Content tab is shown
     var contentTab = document.getElementById('content-tab');

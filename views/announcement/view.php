@@ -111,12 +111,14 @@ foreach ([DissertationAnnouncement::LANG_RU, DissertationAnnouncement::LANG_KZ, 
             </h3>
             <ul class="list-group">
                 <?php foreach ($announcement->documents as $doc): ?>
+                <?php $documentLabel = $doc->display_name ?: $doc->document_name; ?>
                 <li class="list-group-item d-flex align-items-center">
                     <i class="bi <?= $doc->getFileIcon() ?> me-3 fs-5"></i>
                     <a href="<?= Html::encode($doc->getDownloadUrl()) ?>"
                        target="_blank" rel="noopener"
-                       class="text-decoration-none">
-                        <?= Html::encode($doc->document_name) ?>
+                       class="text-decoration-none"
+                       title="<?= Html::encode($doc->document_name) ?>">
+                        <?= Html::encode($documentLabel) ?>
                     </a>
                     <small class="text-muted ms-auto">
                         <?= Html::encode((new DateTime($doc->uploaded_at))->format('d.m.Y')) ?>

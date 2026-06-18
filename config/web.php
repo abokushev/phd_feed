@@ -57,6 +57,10 @@ $config = [
                 'manage/update/<id:\d+>' => 'manage/update',
                 'manage/delete/<id:\d+>' => 'manage/delete',
                 'manage/delete-document/<id:\d+>' => 'manage/delete-document',
+                'manage/upload-document' => 'manage/upload-document',
+                'manage/document-display-name/add' => 'manage/add-document-display-name',
+                'manage/document-display-name/delete/<id:\d+>' => 'manage/delete-document-display-name',
+                'manage/switch-language/<id:\d+>/<language:(ru|kz|en)>' => 'manage/switch-language',
             ],
         ],
         'i18n' => [
