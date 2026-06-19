@@ -22,6 +22,14 @@ foreach ([DissertationAnnouncement::LANG_RU, DissertationAnnouncement::LANG_KZ, 
         ]);
     }
 }
+
+if (!Yii::$app->user->isGuest && (int) $announcement->created_by === (int) Yii::$app->user->id) {
+    $this->params['manageUrl'] = Url::to([
+        '/manage/update',
+        'id' => $announcement->id,
+        'lang' => $announcement->language,
+    ]);
+}
 ?>
 
 <div class="announcement-view-page py-4">

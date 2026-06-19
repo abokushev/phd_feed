@@ -176,7 +176,11 @@ class ManageController extends Controller
 
         $announcementId = $doc->announcement_id;
         $filePath = $doc->file_path;
-        $doc->delete();
+        if ($doc->is_global) {
+            $this->deleteGlobalDocumentCopies($announcement, $filePath, (int) $doc->id);
+        } else {
+            $doc->delete();
+        }
         $this->deleteDocumentFileIfUnused($filePath);
 
         if (Yii::$app->request->isAjax) {
@@ -575,6 +579,61 @@ class ManageController extends Controller
         $newDoc->display_name    = $sourceDoc->display_name;
         $newDoc->is_global       = true;
         $newDoc->save(false);
+    }
+
+    protected function deleteGlobalDocumentCopies(DissertationAnnouncement $announcement, string $filePath, int $sourceDocId): void
+    {
+        $announcementIds = $this->getRelatedAnnouncementIds($announcement);
+
+        AnnouncementDocument::deleteAll([
+            'and',
+            ['announcement_id' => $announcementIds],
+            ['file_path' => $filePath],
+            ['or',
+                ['is_global' => true],
+                ['id' => $sourceDocId],
+            ],
+        ]);
+    }
+
+    protected function getRelatedAnnouncementIds(DissertationAnnouncement $announcement): array
+    {
+        $groupKeys = array_values(array_unique(array_filter([
+            $announcement->group_key,
+            $announcement->getTranslationGroupKey(),
+        ])));
+
+        $translationUrls = [];
+        foreach ([DissertationAnnouncement::LANG_RU, DissertationAnnouncement::LANG_KZ, DissertationAnnouncement::LANG_EN] as $language) {
+            $translationUrls[] = $announcement->getTranslationUrl($language);
+        }
+
+        $ids = DissertationAnnouncement::find()
+            ->select('id')
+            ->where(['created_by' => $announcement->created_by])
+            ->andWhere(['or',
+                ['id' => $announcement->id],
+                ['group_key' => $groupKeys],
+                ['url' => array_values(array_unique($translationUrls))],
+            ])
+            ->column();
+
+        $linkedIds = $announcement->getLinkedAnnouncements()->select('id')->column();
+        $linkedByIds = $announcement->getLinkedByAnnouncements()->select('id')->column();
+        $allIds = array_values(array_unique(array_map('intval', array_merge(
+            [(int) $announcement->id],
+            $ids,
+            $linkedIds,
+            $linkedByIds
+        ))));
+
+        return DissertationAnnouncement::find()
+            ->select('id')
+            ->where([
+                'id' => $allIds,
+                'created_by' => $announcement->created_by,
+            ])
+            ->column();
     }
 
     protected function deleteDocumentFileIfUnused(string $filePath): void

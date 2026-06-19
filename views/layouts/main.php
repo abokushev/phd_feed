@@ -7,6 +7,7 @@ use yii\helpers\Url;
 
 $lang    = Yii::$app->language;
 $baseUrl = Yii::$app->request->baseUrl;
+$manageUrl = $this->params['manageUrl'] ?? Url::to(['/manage']);
 
 $langUrl = static function (string $l): string {
     if (!empty(Yii::$app->view->params['languageUrls'][$l])) {
@@ -105,7 +106,7 @@ $langUrl = static function (string $l): string {
                     </li>
                 <?php else: ?>
                     <li class="nav-item">
-                        <a class="nav-link text-white" href="<?= Url::to(['/manage']) ?>">
+                        <a class="nav-link text-white" href="<?= Html::encode($manageUrl) ?>">
                             <i class="bi bi-pencil-square me-1"></i><?= Yii::t('app', 'Управление') ?>
                         </a>
                     </li>
